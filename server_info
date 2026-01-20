@@ -1,0 +1,111 @@
+Follow WAHA Python Integration Guide:
+https://waha.devlike.pro/docs/integrations/python/
+
+=== ARCHITECTURE ===
+Horizontal scaling system with:
+- PostgreSQL database for session/node management
+- Multiple WAHA nodes (waha1:3001, waha2:3002) for load balancing
+- FastAPI core service (port 8000) for routing and webhooks
+- Automatic node allocation based on load
+
+=== SETUP ===
+1. Start containers: docker-compose up
+2. View Swagger docs: http://localhost:8000/docs
+3. View WAHA Swagger: 
+   - Node 1: http://localhost:3001/
+   - Node 2: http://localhost:3002/
+
+=== INITIAL SETUP ===
+1. Create a WhatsApp session (automatically assigned to least-loaded node):
+   POST http://localhost:8000/session/create
+   Body: {"phone": "1234567890"}
+   Or use Swagger: http://localhost:8000/docs → POST /session/create
+
+2. Get QR code for the session:
+   GET http://localhost:3001/api/screenshot
+   (Or check which node was assigned and use that port: 3001 or 3002)
+   (Or use WAHA Swagger at http://localhost:3001/ or http://localhost:3002/)
+
+3. Scan QR code with your WhatsApp mobile app
+
+4. Verify connection:
+   GET http://localhost:3001/api/screenshot
+   (Should show WhatsApp Web interface, not QR code)
+
+=== TESTING FLOW ===
+
+Test 1: Create Session
+POST http://localhost:8000/session/create
+Body:
+{
+  "phone": "1234567890"
+}
+Response will show which WAHA node was assigned.
+
+Test 2: Send Message via Our API
+POST http://localhost:8000/send
+Body:
+{
+  "session_phone": "1234567890",
+  "recipient_chat_id": "9876543210@c.us",
+  "text": "Hello from API!"
+}
+Or use Swagger: http://localhost:8000/docs → POST /send
+
+Test 3: Webhook Flow (Echo Bot)
+1. Send a message FROM your WhatsApp TO the connected number
+2. The webhook at /webhook/waha will automatically:
+   - Receive the message
+   - Send "seen" (read receipt)
+   - Echo back: "Echo: [your message]"
+3. Check logs: docker compose logs -f api
+
+=== ENDPOINTS ===
+Our API (http://localhost:8000):
+- GET / - Health check
+- POST /session/create - Create WhatsApp session (auto-assigned to node)
+- POST /send - Send text message (routed to correct WAHA node)
+- POST /webhook/waha - Webhook (receives messages from WAHA)
+- POST /bot - Legacy webhook endpoint (backward compatibility)
+
+WAHA API (direct access):
+- Node 1 (http://localhost:3001):
+  - POST /api/sessions - Create session (direct)
+  - GET /api/screenshot - Get QR code
+  - POST /api/sendText - Send message (direct)
+  - POST /api/sendSeen - Send seen (direct)
+  - API Key: secret1
+
+- Node 2 (http://localhost:3002):
+  - POST /api/sessions - Create session (direct)
+  - GET /api/screenshot - Get QR code
+  - POST /api/sendText - Send message (direct)
+  - POST /api/sendSeen - Send seen (direct)
+  - API Key: secret2
+
+=== DATABASE ===
+PostgreSQL database stores:
+- WAHA nodes configuration (URL, API keys, capacity)
+- WhatsApp sessions mapping (phone → node assignment)
+- Automatic load balancing across nodes
+
+=== SCALING ===
+To add more WAHA nodes:
+1. Add new service to docker-compose.yml
+2. Restart containers
+3. Nodes are auto-initialized on startup
+
+
+
+docker compose up -d
+docker compose logs -f
+docker stats waha_core_1 waha_core_2
+curl http://localhost:3001/api/sessions 
+ -H "X-API-Key: e651e105f20541afa39e6b6de2f9cc9d"
+
+curl http://localhost:3002/api/sessions 
+ -H "X-API-Key: 3341ksake651ksfslfafa39ee2f9lcpd"
+ docker stop waha_core_1 waha_core_2
+ docker rm waha_core_1 waha_core_2
+ docker volume rm waha_integration_waha_sessions_1
+ docker volume rm waha_integration_waha_sessions_2

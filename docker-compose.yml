@@ -1,0 +1,38 @@
+version: "3.9"
+
+services:
+  waha_core_1:
+    image: devlikeapro/waha:latest
+    container_name: waha_core_1
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    environment:
+      WHATSAPP_DEFAULT_ENGINE: GOWS
+      WHATSAPP_API_KEY: ${WAHA_API_KEY_1}
+      WAHA_DASHBOARD_USERNAME: ${WAHA_DASHBOARD_USERNAME}
+      WAHA_DASHBOARD_PASSWORD: ${WAHA_DASHBOARD_PASSWORD}
+      WHATSAPP_SWAGGER_USERNAME: ${WHATSAPP_SWAGGER_USERNAME}
+      WHATSAPP_SWAGGER_PASSWORD: ${WHATSAPP_SWAGGER_PASSWORD}
+    volumes:
+      - waha_sessions_1:/app/.sessions
+
+  waha_core_2:
+    image: devlikeapro/waha:latest
+    container_name: waha_core_2
+    restart: unless-stopped
+    ports:
+      - "3002:3000"
+    environment:
+      WHATSAPP_DEFAULT_ENGINE: GOWS
+      WHATSAPP_API_KEY: ${WAHA_API_KEY_2}
+      WAHA_DASHBOARD_USERNAME: ${WAHA_DASHBOARD_USERNAME}
+      WAHA_DASHBOARD_PASSWORD: ${WAHA_DASHBOARD_PASSWORD}
+      WHATSAPP_SWAGGER_USERNAME: ${WHATSAPP_SWAGGER_USERNAME}
+      WHATSAPP_SWAGGER_PASSWORD: ${WHATSAPP_SWAGGER_PASSWORD}
+    volumes:
+      - waha_sessions_2:/app/.sessions
+
+volumes:
+  waha_sessions_1:
+  waha_sessions_2:
