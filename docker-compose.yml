@@ -1,6 +1,38 @@
 version: "3.9"
 
 services:
+  api:
+    build: .
+    container_name: fastapi-core
+    ports:
+      - "8000:8000"
+    depends_on:
+      - postgres
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=${DATABASE_URL:-postgresql://waha:waha@postgres:5432/waha}
+    volumes:
+      - .:/app
+    restart: unless-stopped
+    networks:
+      - waha-network
+
+  postgres:
+    image: postgres:15
+    container_name: waha-postgres
+    env_file:
+      - .env
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-waha}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-waha}
+      POSTGRES_DB: ${POSTGRES_DB:-waha}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+    networks:
+      - waha-network
+
   waha_core_1:
     image: devlikeapro/waha:latest
     container_name: waha_core_1
@@ -14,8 +46,13 @@ services:
       WAHA_DASHBOARD_PASSWORD: ${WAHA_DASHBOARD_PASSWORD}
       WHATSAPP_SWAGGER_USERNAME: ${WHATSAPP_SWAGGER_USERNAME}
       WHATSAPP_SWAGGER_PASSWORD: ${WHATSAPP_SWAGGER_PASSWORD}
+      WAHA_RESTART_ALL_SESSIONS: ${WAHA_RESTART_ALL_SESSIONS}
+      WHATSAPP_HOOK_URL: ${WHATSAPP_HOOK_URL}
+      WHATSAPP_HOOK_EVENTS: ${WHATSAPP_HOOK_EVENTS}
     volumes:
       - waha_sessions_1:/app/.sessions
+    networks:
+      - waha-network
 
   waha_core_2:
     image: devlikeapro/waha:latest
@@ -30,9 +67,19 @@ services:
       WAHA_DASHBOARD_PASSWORD: ${WAHA_DASHBOARD_PASSWORD}
       WHATSAPP_SWAGGER_USERNAME: ${WHATSAPP_SWAGGER_USERNAME}
       WHATSAPP_SWAGGER_PASSWORD: ${WHATSAPP_SWAGGER_PASSWORD}
+      WAHA_RESTART_ALL_SESSIONS: ${WAHA_RESTART_ALL_SESSIONS}
+      WHATSAPP_HOOK_URL: ${WHATSAPP_HOOK_URL}
+      WHATSAPP_HOOK_EVENTS: ${WHATSAPP_HOOK_EVENTS}
     volumes:
       - waha_sessions_2:/app/.sessions
+    networks:
+      - waha-network
 
 volumes:
+  pgdata:
   waha_sessions_1:
   waha_sessions_2:
+
+networks:
+  waha-network:
+    driver: bridge

@@ -4,53 +4,114 @@ https://waha.devlike.pro/docs/integrations/python/
 === ARCHITECTURE ===
 Horizontal scaling system with:
 - PostgreSQL database for session/node management
-- Multiple WAHA nodes (waha1:3001, waha2:3002) for load balancing
+- Multiple WAHA nodes (waha_core_1:3001, waha_core_2:3002) for load balancing
 - FastAPI core service (port 8000) for routing and webhooks
 - Automatic node allocation based on load
+- Default session support (uses "default" session if not specified)
 
 === SETUP ===
-1. Start containers: docker-compose up
-2. View Swagger docs: http://localhost:8000/docs
-3. View WAHA Swagger: 
+1. Create .env file with required variables (see below)
+2. Start containers: docker compose up -d
+3. View Swagger docs: http://localhost:8000/docs
+4. View WAHA Swagger: 
    - Node 1: http://localhost:3001/
    - Node 2: http://localhost:3002/
 
+=== ENVIRONMENT VARIABLES (.env) ===
+Required variables:
+DATABASE_URL=postgresql://waha:waha@postgres:5432/waha
+POSTGRES_USER=waha
+POSTGRES_PASSWORD=waha
+POSTGRES_DB=waha
+WAHA_API_KEY_1=your_secret_key_1
+WAHA_API_KEY_2=your_secret_key_2
+WHATSAPP_HOOK_URL=http://api:8000/webhook/waha
+WHATSAPP_HOOK_EVENTS=message,message.ack,session.status
+
+Optional variables:
+WAHA_DASHBOARD_USERNAME=admin
+WAHA_DASHBOARD_PASSWORD=admin
+WHATSAPP_SWAGGER_USERNAME=admin
+WHATSAPP_SWAGGER_PASSWORD=admin
+WAHA_RESTART_ALL_SESSIONS=false
+
 === INITIAL SETUP ===
 1. Create a WhatsApp session (automatically assigned to least-loaded node):
-   POST http://localhost:8000/session/create
-   Body: {"phone": "1234567890"}
+   Default session (recommended):
+   curl -X POST http://localhost:8000/session/create \
+     -H "Content-Type: application/json" \
+     -d '{"phone": "default"}'
+   
    Or use Swagger: http://localhost:8000/docs → POST /session/create
 
 2. Get QR code for the session:
-   GET http://localhost:3001/api/screenshot
+   curl http://localhost:3001/api/screenshot \
+     -H "X-API-Key: ${WAHA_API_KEY_1}"
+   
    (Or check which node was assigned and use that port: 3001 or 3002)
    (Or use WAHA Swagger at http://localhost:3001/ or http://localhost:3002/)
 
 3. Scan QR code with your WhatsApp mobile app
 
 4. Verify connection:
-   GET http://localhost:3001/api/screenshot
+   curl http://localhost:3001/api/screenshot \
+     -H "X-API-Key: ${WAHA_API_KEY_1}"
    (Should show WhatsApp Web interface, not QR code)
 
 === TESTING FLOW ===
 
-Test 1: Create Session
-POST http://localhost:8000/session/create
-Body:
-{
-  "phone": "1234567890"
-}
-Response will show which WAHA node was assigned.
+Test 1: Create Session (Default Session)
 
-Test 2: Send Message via Our API
-POST http://localhost:8000/send
-Body:
+Using curl:
+curl -X POST http://localhost:8000/session/create \
+  -H "Content-Type: application/json" \
+  -d '{"phone": "default"}'
+
+Using Swagger: http://localhost:8000/docs → POST /session/create
+
+Request Body:
 {
-  "session_phone": "1234567890",
-  "recipient_chat_id": "9876543210@c.us",
+  "phone": "default"
+}
+
+Response will show which WAHA node was assigned.
+Note: Using "default" session allows you to send messages without specifying session_phone.
+
+Test 2: Send Message via Our API (using default session)
+
+Using curl (default session - recommended):
+curl -X POST http://localhost:8000/send \
+  -H "Content-Type: application/json" \
+  -d '{
+    "recipient_chat_id": "923458832795@c.us",
+    "text": "Hello from API!"
+  }'
+
+Using curl (specific session):
+curl -X POST http://localhost:8000/send \
+  -H "Content-Type: application/json" \
+  -d '{
+    "session_phone": "default",
+    "recipient_chat_id": "923458832795@c.us",
+    "text": "Hello from API!"
+  }'
+
+Using Swagger: http://localhost:8000/docs → POST /send
+
+Request Body (default session - session_phone is optional):
+{
+  "recipient_chat_id": "923458832795@c.us",
   "text": "Hello from API!"
 }
-Or use Swagger: http://localhost:8000/docs → POST /send
+
+Request Body (explicit session):
+{
+  "session_phone": "default",
+  "recipient_chat_id": "923458832795@c.us",
+  "text": "Hello from API!"
+}
+
+Note: recipient_chat_id format is "PHONE_NUMBER@c.us" (e.g., "923458832795@c.us")
 
 Test 3: Webhook Flow (Echo Bot)
 1. Send a message FROM your WhatsApp TO the connected number
@@ -69,19 +130,19 @@ Our API (http://localhost:8000):
 - POST /bot - Legacy webhook endpoint (backward compatibility)
 
 WAHA API (direct access):
-- Node 1 (http://localhost:3001):
+- Node 1 (http://localhost:3001, container: waha_core_1):
   - POST /api/sessions - Create session (direct)
   - GET /api/screenshot - Get QR code
   - POST /api/sendText - Send message (direct)
   - POST /api/sendSeen - Send seen (direct)
-  - API Key: secret1
+  - API Key: Use ${WAHA_API_KEY_1} from .env
 
-- Node 2 (http://localhost:3002):
+- Node 2 (http://localhost:3002, container: waha_core_2):
   - POST /api/sessions - Create session (direct)
   - GET /api/screenshot - Get QR code
   - POST /api/sendText - Send message (direct)
   - POST /api/sendSeen - Send seen (direct)
-  - API Key: secret2
+  - API Key: Use ${WAHA_API_KEY_2} from .env
 
 === DATABASE ===
 PostgreSQL database stores:
@@ -97,15 +158,68 @@ To add more WAHA nodes:
 
 
 
-docker compose up -d
-docker compose logs -f
-docker stats waha_core_1 waha_core_2
-curl http://localhost:3001/api/sessions 
- -H "X-API-Key: e651e105f20541afa39e6b6de2f9cc9d"
+=== QUICK REFERENCE ===
 
-curl http://localhost:3002/api/sessions 
- -H "X-API-Key: 3341ksake651ksfslfafa39ee2f9lcpd"
- docker stop waha_core_1 waha_core_2
- docker rm waha_core_1 waha_core_2
- docker volume rm waha_integration_waha_sessions_1
- docker volume rm waha_integration_waha_sessions_2
+# Start services
+docker compose up -d
+
+# View logs
+docker compose logs -f api
+
+# Monitor containers
+docker stats waha_core_1 waha_core_2
+
+# FastAPI - Create Session
+curl -X POST http://localhost:8000/session/create \
+  -H "Content-Type: application/json" \
+  -d '{"phone": "1234567890"}'
+
+# FastAPI - Send Message (using default session - recommended)
+curl -X POST http://localhost:8000/send \
+  -H "Content-Type: application/json" \
+  -d '{
+    "recipient_chat_id": "923458832795@c.us",
+    "text": "Hello from FastAPI!"
+  }'
+
+# FastAPI - Send Message (with explicit session)
+curl -X POST http://localhost:8000/send \
+  -H "Content-Type: application/json" \
+  -d '{
+    "session_phone": "default",
+    "recipient_chat_id": "923458832795@c.us",
+    "text": "Hello from FastAPI!"
+  }'
+
+# FastAPI - Health Check
+curl http://localhost:8000/
+
+# WAHA Node 1 - List Sessions
+curl http://localhost:3001/api/sessions \
+  -H "X-API-Key: ${WAHA_API_KEY_1}"
+
+# WAHA Node 2 - List Sessions
+curl http://localhost:3002/api/sessions \
+  -H "X-API-Key: ${WAHA_API_KEY_2}"
+
+# Cleanup
+docker compose down
+docker volume rm waha_integration_waha_sessions_1 waha_integration_waha_sessions_2 waha_integration_pgdata
+
+# Rebuild and restart
+docker compose up --build -d
+
+# Check container status
+docker ps --filter "name=fastapi-core|waha-postgres|waha_core"
+
+# View logs
+docker logs fastapi-core -f
+docker logs waha_core_1 -f
+docker logs waha_core_2 -f
+
+
+
+docker exec -i waha-postgres psql -U waha -d waha -c "ALTER TABLE contact_containers ADD COLUMN IF NOT EXISTS phone_number VARCHAR(255);"
+
+
+docker exec -i waha-postgres psql -U waha -d waha -c "\d contact_containers"

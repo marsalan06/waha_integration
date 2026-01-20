@@ -2,6 +2,10 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 import os
 import logging
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 from models import Base, WahaNode
 
@@ -36,8 +40,8 @@ def init_nodes():
             api_key_2 = os.getenv("WAHA_API_KEY_2", "secret2")
             
             nodes = [
-                WahaNode(url="http://waha1:3000", api_key=api_key_1, max_sessions=50, active_sessions=0),
-                WahaNode(url="http://waha2:3000", api_key=api_key_2, max_sessions=50, active_sessions=0),
+                WahaNode(url="http://waha_core_1:3000", api_key=api_key_1, max_sessions=200, active_sessions=0),
+                WahaNode(url="http://waha_core_2:3000", api_key=api_key_2, max_sessions=200, active_sessions=0),
             ]
             for node in nodes:
                 db.add(node)
